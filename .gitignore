@@ -1,0 +1,9 @@
+# ignore raw game dumps, assters, and working ISOs
+*.iso
+/extracted_iso/
+/workspace/raw_bytes/
+
+# Ignore Pythom runtime environement and caches
+__pycache__/
+.venv/
+.vscode/
