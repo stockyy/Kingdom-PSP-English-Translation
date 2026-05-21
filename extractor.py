@@ -1,7 +1,7 @@
 import struct
 import json
 
-INFILE = "DAT.BIN"
+INFILES = ["DAT", "MSN", "UI"]
 
 def analyse_header(filepath):
     # Open the file in raw binary mode
@@ -100,7 +100,7 @@ def parse_binary(infile: str):
         
         # If not a relevant char, reset variables 
         else:
-            if current_length > 0:
+            if current_length > 3:
                 try:
                     decoded_text = current_word.decode("shift_jis")
                     string_locations[start_offset] = {"word_length": current_length, "text": decoded_text}
@@ -119,5 +119,6 @@ def parse_binary(infile: str):
 
 # Run the function
 if __name__ == "__main__":
-    string_locations = parse_binary(f"target_files/{INFILE}")
-    create_json("outfiles/text-DAT.json", string_locations)
+    for i in INFILES:
+        string_locations = parse_binary(f"target_files/{i}.BIN")
+        create_json(f"outfiles/text_{i}.json", string_locations)
