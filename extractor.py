@@ -37,6 +37,7 @@ def parse_pointer_table(infile):
             file_directory.update({f"FILE_{i}" :{"offset": offset, "file_size": file_size, "original_id": original_id, "compression_flag": compression_flag}})
 
         print(file_directory)
+    return file_directory
 
 
 # Run the function
