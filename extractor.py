@@ -38,10 +38,7 @@ def parse_pointer_table(infile):
 
         print(file_directory)
 
-            
-
-
 
 # Run the function
 if __name__ == "__main__":
-    analyse_header('target-files/DAT.BIN')
+    parse_pointer_table('target-files/DAT.BIN')
