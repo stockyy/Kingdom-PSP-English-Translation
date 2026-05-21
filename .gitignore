@@ -2,6 +2,7 @@
 *.iso
 /extracted_iso/
 /workspace/raw_bytes/
+/outfiles/
 
 # Ignore Pythom runtime environement and caches
 __pycache__/
