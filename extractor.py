@@ -1,6 +1,8 @@
 import struct
 import json
 
+INFILES = ["DAT", "MSN", "UI"]
+
 def analyse_header(filepath):
     # Open the file in raw binary mode
     with open(filepath, 'rb') as f:
@@ -45,7 +47,7 @@ def create_json(filepath: str, data: dict):
     with open(f"{filepath}", 'w') as j:
         json.dump(data, j)
 
-
+# NOT NEEDED - Was a funcation to extrcat subfiles from DAT.BIN, discovered to be unnecessary
 def extract_subfiles(infile: str, subfile_infomation: dict):
     with open(infile, "rb") as infile:
         for key, value in subfile_infomation.items():
@@ -63,10 +65,60 @@ def extract_subfiles(infile: str, subfile_infomation: dict):
             with open(f"extracted_iso/{key}.bin", "wb") as outfile:
                 outfile.write(subfile_data)
 
+def parse_binary(infile: str):
+    string_locations = {}
+    current_word = bytearray()
+    start_offset = ""
+    word_length = ""
 
+    with open(infile, "rb") as fp:
+        data = fp.read()
+    
+    i = 0
+    current_length = 0
+    while i < len(data):
+        byte = data[i]
+
+        # If the byte is in japanese
+        if (byte >= 0x81 and byte <=0x9F) or (byte >= 0xE0 and byte <= 0xFC):
+            # append entire japanese char
+            if i+1 < len(data):
+                current_word.append(byte)
+                current_word.append(data[i+1])
+            if current_length == 0:
+                start_offset = i 
+            current_length += 1
+            i += 2
+            continue
+
+        # If the byte is in english ASCII
+        elif (byte >= 0x20 and byte <= 0x7E):
+            current_word.append(byte)
+            if current_length == 0:
+                start_offset = i 
+            current_length += 1
+        
+        # If not a relevant char, reset variables 
+        else:
+            if current_length > 3:
+                try:
+                    decoded_text = current_word.decode("shift_jis")
+                    string_locations[start_offset] = {"word_length": current_length, "text": decoded_text}
+                
+                except UnicodeDecodeError:
+                    # It wasn't just text
+                    pass
+            
+            current_word = bytearray()
+            current_length = 0
+
+        i += 1
+
+    return string_locations
+    # print(string_locations)
 
 # Run the function
 if __name__ == "__main__":
-    file_information = parse_pointer_table('target_files/DAT.BIN')
-    create_json("DAT_info.json", file_information)
-    extract_subfiles("target_files/DAT.BIN", file_information)
+    for i in INFILES:
+        string_locations = parse_binary(f"target_files/{i}.BIN")
+        create_json(f"outfiles/text_{i}.json", string_locations)
