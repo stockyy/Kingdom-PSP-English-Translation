@@ -39,7 +39,13 @@ def parse_pointer_table(infile):
         print(file_directory)
     return file_directory
 
+def create_json(filepath: str, data: dict):
+    with open(f"{filepath}", 'w') as j:
+        json.dump(data, j)
+
+
 
 # Run the function
 if __name__ == "__main__":
-    parse_pointer_table('target-files/DAT.BIN')
+    file_information = parse_pointer_table('target-files/DAT.BIN')
+    create_json("DAT_info.json", file_information)
