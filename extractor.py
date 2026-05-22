@@ -1,5 +1,6 @@
 import struct
 import json
+import re
 
 INFILES = ["DAT", "MSN", "UI"]
 
@@ -44,7 +45,7 @@ def parse_pointer_table(infile):
 
 # Create JSON file with file data
 def create_json(filepath: str, data: dict):
-    with open(f"{filepath}", 'w') as j:
+    with open(f"{filepath}", 'w', encoding="utf-8") as j:
         json.dump(data, j)
 
 # NOT NEEDED - Was a funcation to extrcat subfiles from DAT.BIN, discovered to be unnecessary
@@ -117,8 +118,27 @@ def parse_binary(infile: str):
     return string_locations
     # print(string_locations)
 
+# Try to srtip out garbage data from the UI file
+def parse_UI():
+    with open("extracted_letter_sequences/text_UI.json") as fp:
+        data = json.load(fp)
+
+        items = list(data.items())
+        last_good_index = 0
+    
+    # Scan every string for Japanese Hiragana, Katakana, or Kanji
+    for i, (key, val) in enumerate(items):
+        text = val.get("text", "")
+        if re.search(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]', text):
+            last_good_index = i
+
+    print(f"Total items in file: {len(items)}")
+    print(f"The last Japanese character appears at list index: {last_good_index}")
+    print(f"You only need to translate up to index: {last_good_index + 100} (adding a small buffer)")
+
 # Run the function
 if __name__ == "__main__":
     for i in INFILES:
         string_locations = parse_binary(f"target_files/{i}.BIN")
-        create_json(f"outfiles/text_{i}.json", string_locations)
+        create_json(f"extracted_letter_sequences/text_{i}.json", string_locations)
+    parse_UI()
