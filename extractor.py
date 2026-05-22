@@ -1,144 +1,151 @@
-import struct
+"""Module for extracting Japanese string sequences from PSP binary files."""
+
 import json
 import re
+import struct
 
 INFILES = ["DAT", "MSN", "UI"]
 
+
 def analyse_header(filepath):
-    # Open the file in raw binary mode
-    with open(filepath, 'rb') as f:
+    """Analyses the 16-byte header of the binary file."""
+    with open(filepath, "rb") as file:
+        header_data = file.read(16)
 
-        # Read the first 16 bytes of the file
-        header_data = f.read(16)
-
-        # struct.unpack decodes the raw binary. 
-        # '<' means Little-Endian. 
+        # struct.unpack decodes the raw binary.
+        # '<' means Little-Endian.
         # 'IIII' means we are expecting four 32-bit Integers (4 bytes each).
-        item_count, data_offset, block_count, unknown = struct.unpack('<IIII', header_data)
+        item_count, data_offset, block_count, _ = struct.unpack("<IIII", header_data)
 
         print("--- DAT.BIN HEADER ANALYSIS ---")
         print(f"Total Items: {item_count}")
         print(f"Data Starts At: {hex(data_offset)} (Hex) / {data_offset} (Decimal)")
         print(f"Block Count: {block_count}")
 
-def parse_pointer_table(infile):
-    # Store results as a dictionary
+
+def parse_pointer_table(infile_path):
+    """Parses the pointer table to map out subfile locations."""
     file_directory = {}
 
-    with open(infile, 'rb') as f:
-        # --- Read in header values ---
-        # Read the first 16 bytes of the file
-        header_data = f.read(16)
-        item_count, data_offset, block_count, unknown = struct.unpack('<IIII', header_data)
-        
-        # Save pointer info to json
-        for i in range(item_count):
-            # Read pointer data & add to the dict 
-            pointer_data = f.read(24)
-            offset, file_size, original_id, compression_flag, unknown_1, unknown_2 = struct.unpack('<IIIIII', pointer_data)
-            
-            file_num = str(i).zfill(3)
-            file_directory.update({f"FILE_{file_num}" :{"offset": offset, "file_size": file_size, "original_id": original_id, "compression_flag": compression_flag}})
+    with open(infile_path, "rb") as file:
+        header_data = file.read(16)
+        item_count, _, _, _ = struct.unpack("<IIII", header_data)
 
-        # print(file_directory)
+        for i in range(item_count):
+            pointer_data = file.read(24)
+            offset, file_size, original_id, compression_flag, _, _ = struct.unpack(
+                "<IIIIII", pointer_data
+            )
+
+            file_num = str(i).zfill(3)
+            file_directory[f"FILE_{file_num}"] = {
+                "offset": offset,
+                "file_size": file_size,
+                "original_id": original_id,
+                "compression_flag": compression_flag,
+            }
+
     return file_directory
 
-# Create JSON file with file data
+
 def create_json(filepath: str, data: dict):
-    with open(f"{filepath}", 'w', encoding="utf-8") as j:
-        json.dump(data, j)
+    """Saves a dictionary to a JSON file with UTF-8 encoding."""
+    with open(filepath, "w", encoding="utf-8") as json_file:
+        json.dump(data, json_file)
 
-# NOT NEEDED - Was a funcation to extrcat subfiles from DAT.BIN, discovered to be unnecessary
-def extract_subfiles(infile: str, subfile_infomation: dict):
-    with open(infile, "rb") as infile:
-        for key, value in subfile_infomation.items():
-            
-            # Get file offset & size
+
+def extract_subfiles(infile_path: str, subfile_information: dict):
+    """Extracts subfiles from a main BIN file based on pointer data."""
+    with open(infile_path, "rb") as bin_file:
+        for key, value in subfile_information.items():
             offset = value["offset"]
-                #print(offset)
             file_size = value["file_size"]
-                #print(file_size)
 
-            # Get file data
-            infile.seek(offset)
-            subfile_data = infile.read(file_size)
-        
+            bin_file.seek(offset)
+            subfile_data = bin_file.read(file_size)
+
             with open(f"extracted_iso/{key}.bin", "wb") as outfile:
                 outfile.write(subfile_data)
 
-def parse_binary(infile: str):
+
+def parse_binary(infile_path: str):
+    """Scans binary data for Shift-JIS and ASCII string sequences."""
     string_locations = {}
     current_word = bytearray()
-    start_offset = ""
-    word_length = ""
+    start_offset = 0
 
-    with open(infile, "rb") as fp:
-        data = fp.read()
-    
-    i = 0
+    with open(infile_path, "rb") as file:
+        data = file.read()
+
+    idx = 0
     current_length = 0
-    while i < len(data):
-        byte = data[i]
+    while idx < len(data):
+        byte = data[idx]
 
         # If the byte is in japanese
-        if (byte >= 0x81 and byte <=0x9F) or (byte >= 0xE0 and byte <= 0xFC):
+        if (0x81 <= byte <= 0x9F) or (0xE0 <= byte <= 0xFC):
             # append entire japanese char
-            if i+1 < len(data):
+            if idx + 1 < len(data):
                 current_word.append(byte)
-                current_word.append(data[i+1])
+                current_word.append(data[idx + 1])
             if current_length == 0:
-                start_offset = i 
+                start_offset = idx
             current_length += 1
-            i += 2
+            idx += 2
             continue
 
         # If the byte is in english ASCII
-        elif (byte >= 0x20 and byte <= 0x7E):
+        if 0x20 <= byte <= 0x7E:
             current_word.append(byte)
             if current_length == 0:
-                start_offset = i 
+                start_offset = idx
             current_length += 1
-        
-        # If not a relevant char, reset variables 
+
+        # If not a relevant char, reset variables
         else:
             if current_length > 3:
                 try:
                     decoded_text = current_word.decode("shift_jis")
-                    string_locations[start_offset] = {"word_length": current_length, "text": decoded_text}
-                
+                    string_locations[start_offset] = {
+                        "word_length": current_length,
+                        "text": decoded_text,
+                    }
+
                 except UnicodeDecodeError:
-                    # It wasn't just text
                     pass
-            
+
             current_word = bytearray()
             current_length = 0
 
-        i += 1
+        idx += 1
 
     return string_locations
-    # print(string_locations)
 
-# Try to srtip out garbage data from the UI file
-def parse_UI():
-    with open("extracted_letter_sequences/text_UI.json") as fp:
-        data = json.load(fp)
+
+def parse_ui():
+    """Identifies the range of actual Japanese text in the UI JSON file."""
+    with open(
+        "extracted_letter_sequences/text_UI.json", "r", encoding="utf-8"
+    ) as json_file:
+        data = json.load(json_file)
 
         items = list(data.items())
         last_good_index = 0
-    
-    # Scan every string for Japanese Hiragana, Katakana, or Kanji
-    for i, (key, val) in enumerate(items):
+
+    for i, (_, val) in enumerate(items):
         text = val.get("text", "")
-        if re.search(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]', text):
+        if re.search(r"[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]", text):
             last_good_index = i
 
     print(f"Total items in file: {len(items)}")
     print(f"The last Japanese character appears at list index: {last_good_index}")
-    print(f"You only need to translate up to index: {last_good_index + 100} (adding a small buffer)")
+    print(
+        f"You only need to translate up to index: {last_good_index + 100} (adding a small buffer)"
+    )
 
-# Run the function
+
 if __name__ == "__main__":
-    for i in INFILES:
-        string_locations = parse_binary(f"target_files/{i}.BIN")
-        create_json(f"extracted_letter_sequences/text_{i}.json", string_locations)
-    parse_UI()
+    for filename in INFILES:
+        locations = parse_binary(f"target_files/{filename}.BIN")
+        create_json(f"extracted_letter_sequences/text_{filename}.json", locations)
+    parse_ui()
