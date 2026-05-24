@@ -3,6 +3,7 @@
 import json
 import re
 import struct
+import os
 
 INFILES = ["DAT", "MSN", "UI"]
 
@@ -54,7 +55,9 @@ def create_json(filepath: str, data: dict):
         json.dump(data, json_file)
 
 
-def extract_subfiles(infile_path: str, subfile_information: dict):
+def extract_subfiles(infile_name: str, subfile_information: dict):
+    infile_path = f"target_files/{infile_name}.BIN"
+
     """Extracts subfiles from a main BIN file based on pointer data."""
     with open(infile_path, "rb") as bin_file:
         for key, value in subfile_information.items():
@@ -64,7 +67,8 @@ def extract_subfiles(infile_path: str, subfile_information: dict):
             bin_file.seek(offset)
             subfile_data = bin_file.read(file_size)
 
-            with open(f"extracted_iso/{key}.bin", "wb") as outfile:
+            create_dir_if_needed(f"extracted_iso/{infile_name}/")
+            with open(f"extracted_iso/{infile_name}/{key}.bin", "wb") as outfile:
                 outfile.write(subfile_data)
 
 
@@ -143,9 +147,25 @@ def parse_ui():
         f"You only need to translate up to index: {last_good_index + 100} (adding a small buffer)"
     )
 
+# Create a directory from a str, desired directory must be in the allowed strings list for error mitigation (if wanted)
+def create_dir_if_needed(directory: str, allowed_strings: list = None):
+    if allowed_strings:
+        if directory in allowed_strings:
+            if not os.path.exists(directory):
+                os.mkdir(directory)
+    else:
+        if not os.path.exists(directory):
+            os.mkdir(directory)
+        
+        
+
 
 if __name__ == "__main__":
-    for filename in INFILES:
+    """ for filename in INFILES:
         locations = parse_binary(f"target_files/{filename}.BIN")
         create_json(f"extracted_letter_sequences/text_{filename}.json", locations)
-    parse_ui()
+    parse_ui() """
+
+    for infile in INFILES:
+        pointer_data = parse_pointer_table(f"target_files/{infile}.BIN")
+        extract_subfiles(infile, pointer_data)
