@@ -58,8 +58,11 @@ def create_json(filepath: str, data: dict):
 def extract_subfiles(infile_name: str, subfile_information: dict):
     infile_path = f"target_files/{infile_name}.BIN"
 
+    print(f"Extracting from: {infile_path}")
+
     """Extracts subfiles from a main BIN file based on pointer data."""
     with open(infile_path, "rb") as bin_file:
+        counter = 0
         for key, value in subfile_information.items():
             offset = value["offset"]
             file_size = value["file_size"]
@@ -70,7 +73,10 @@ def extract_subfiles(infile_name: str, subfile_information: dict):
             create_dir_if_needed(f"extracted_iso/{infile_name}/")
             with open(f"extracted_iso/{infile_name}/{key}.bin", "wb") as outfile:
                 outfile.write(subfile_data)
+            
+            counter += 1
 
+    print(f"\t Files extracted: {counter}")
 
 def parse_binary(infile_path: str):
     """Scans binary data for Shift-JIS and ASCII string sequences."""
@@ -161,10 +167,11 @@ def create_dir_if_needed(directory: str, allowed_strings: list = None):
 
 
 if __name__ == "__main__":
-    """ for filename in INFILES:
+    for filename in INFILES:
         locations = parse_binary(f"target_files/{filename}.BIN")
+        create_dir_if_needed("extracted_letter_sequences/")
         create_json(f"extracted_letter_sequences/text_{filename}.json", locations)
-    parse_ui() """
+    parse_ui()
 
     for infile in INFILES:
         pointer_data = parse_pointer_table(f"target_files/{infile}.BIN")
